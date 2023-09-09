@@ -18,6 +18,8 @@ fn main() -> Result<()> {
 
     let mut config = Config::default();
 
+    let x32_id = uuid::Uuid::new_v4().to_string();
+
     for p in 1..100 {
         let mut page = Page::default();
         {
@@ -34,20 +36,23 @@ fn main() -> Result<()> {
 
         if let Some(this_controls) = myconfig.groups.get(p - 1) {
             let mut viewrow = HashMap::new();
-           // let controlrow = HashMap::new();
-            for (index, channel) in this_controls.channels.iter().enumerate() {
-                let button = ButtonControl::new_channel_view(&channel.0, channel.1.try_into()?);
+            let mut controlrow = HashMap::new();
+            for (index, (channel_name, channel_num)) in this_controls.channels.iter().enumerate() {
+                let button = ButtonControl::new_channel_view(&channel_name, *channel_num);
                 viewrow.insert(index.to_string(), Control::button(button));
+
+                let button = ButtonControl::new_channel_rotary(&x32_id, *channel_num, 0.3);
+                controlrow.insert(index.to_string(), Control::button(button));
             }
             page.controls.insert("2".to_string(), viewrow);
+            page.controls.insert("3".to_string(), controlrow);
         }
 
         config.pages.insert(p.to_string(), page);
     }
 
     let x32 = Instance::new("behringer-x32", "x32", 2);
-    let instanceid = uuid::Uuid::new_v4().to_string();
-    config.instances.insert(instanceid, x32);
+    config.instances.insert(x32_id, x32);
 
     // write config to a file in json format
     let json = serde_json::to_string_pretty(&config).expect("Unable to serialize config");

@@ -151,6 +151,19 @@ impl ButtonControl {
             steps: Default::default(),
         }
     }
+    pub fn new_channel_rotary(x32_id: &str, channel: u32, step: f32) -> Self {
+        let mut steps = HashMap::new();
+        steps.insert("0".to_string(), Step::fade_channel(x32_id, channel, step));
+        Self {
+            style: Style::new(""),
+            options: Options {
+                rotaryActions: Some(true),
+                ..Default::default()
+            },
+            feedbacks: Default::default(),
+            steps: steps,
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -236,6 +249,20 @@ impl Step {
             },
         }
     }
+
+    fn fade_channel(x32_id: &str, channel: u32, step: f32)  ->  Self {
+        Self {
+            action_sets: ActionSet {
+                down: vec![],
+                up: vec![],
+                rotate_left: Some(vec![Action::fade_channel(x32_id,channel,-step)]),
+                rotate_right: Some(vec![Action::fade_channel(x32_id,channel,step)]),
+            },
+            options: StepOptions {
+                runWhileHeld: vec![],
+            },
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -265,6 +292,11 @@ enum Action {
     fad(FadAction),
     fader_delta(FaderDeltaAction),
 }
+impl Action {
+    fn fade_channel(x32_id: &str, channel: u32, step: f32) -> Self {
+       Self::fader_delta(FaderDeltaAction::fade_channel(x32_id,channel,step))
+    }
+}
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -274,6 +306,22 @@ pub struct FaderDeltaAction {
     instance: String,
     options: FadDeltaOptions,
     delay: u32,
+}
+impl FaderDeltaAction {
+    fn fade_channel(x32_id: &str, channel: u32, step: f32) -> Self {
+        Self {
+            id: new_id(),
+            instance: x32_id.to_string(),
+            options: FadDeltaOptions {
+                target: format!("/ch/{:02}", channel),
+                delta: step,
+                fadeDuration: 0,
+                fadeAlgorithm: "linear".to_string(),
+                fadeType: "ease_in".to_string(),
+            },
+            delay: 0,
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -315,6 +363,7 @@ pub struct FadAction {
     options: FadOptions,
     delay: u32,
 }
+
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
