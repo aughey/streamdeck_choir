@@ -1,0 +1,13 @@
+groups:
+  - name: "Floor"
+    channels:
+      - [Joe, 26]
+      - [Flute, 28]
+      - [Front Left, 17]
+      - [Front Right, 31]
+  - name: "Risers"
+    channels:
+      - [Middle Left, 25]
+      - [Middle Right, 27]
+      - [Top Left, 30]
+      - [Top Right, 29]
