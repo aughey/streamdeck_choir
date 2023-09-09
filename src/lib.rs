@@ -41,6 +41,10 @@ impl Default for Config {
 pub struct Instance {
     instance_type: String,
     label: String,
+    sortOrder: u32,
+    isFirstInit: bool,
+    config: InstanceConfig,
+    enabled: bool,
     lastUpgradeIndex: u32,
 }
 impl Instance {
@@ -49,8 +53,23 @@ impl Instance {
             instance_type: instance_type.to_string(),
             label: label.to_string(),
             lastUpgradeIndex: upindex,
+            sortOrder: 1,
+            isFirstInit: false,
+            config: InstanceConfig {
+                host: "10.0.0.50".to_string(),
+                fadeFps: 10,
+            },
+            enabled: true,
         }
     }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+#[allow(non_snake_case)]
+pub struct InstanceConfig {
+    host: String,
+    fadeFps: u32
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -114,14 +133,22 @@ pub struct ButtonControl {
     steps: HashMap<String, Step>,
 }
 impl ButtonControl {
-   pub fn new_page_select(text: impl AsRef<str>, page: u32) -> Self {
+    pub fn new_page_select(text: impl AsRef<str>, page: u32) -> Self {
         let mut steps = HashMap::new();
         steps.insert("0".to_string(), Step::new_page_select(page));
         Self {
             style: Style::new(text.as_ref()),
             options: Default::default(),
             feedbacks: Default::default(),
-            steps: steps
+            steps: steps,
+        }
+    }
+    pub fn new_channel_view(text: &str, channel: u32) -> Self {
+        Self {
+            style: Style::new(&format!("{text}\n$(x32:fader_ch_{channel})")),
+            options: Default::default(),
+            feedbacks: Default::default(),
+            steps: Default::default(),
         }
     }
 }
@@ -166,7 +193,11 @@ pub struct Options {
 }
 impl Default for Options {
     fn default() -> Self {
-        Self { relativeDelay: false, stepAutoProgress: true, rotaryActions: None }
+        Self {
+            relativeDelay: false,
+            stepAutoProgress: true,
+            rotaryActions: None,
+        }
     }
 }
 
@@ -200,7 +231,9 @@ impl Step {
                 rotate_left: None,
                 rotate_right: None,
             },
-            options: StepOptions { runWhileHeld: vec![] },
+            options: StepOptions {
+                runWhileHeld: vec![],
+            },
         }
     }
 }

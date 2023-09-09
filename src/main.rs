@@ -1,7 +1,6 @@
-
-use std::collections::HashMap;
 use anyhow::Result;
-use streamdeck_choir::{Config, Control, Instance, Page, MyConfig, ButtonControl};
+use std::collections::HashMap;
+use streamdeck_choir::{ButtonControl, Config, Control, Instance, MyConfig, Page};
 
 fn main() -> Result<()> {
     {
@@ -21,16 +20,27 @@ fn main() -> Result<()> {
 
     for p in 1..100 {
         let mut page = Page::default();
-        let mut row = HashMap::new();
+        {
+            let mut row = HashMap::new();
 
-        for (index,group) in myconfig.groups.iter().enumerate() {
-            let button = ButtonControl::new_page_select(&group.name, (index+1).try_into()?);
-            row.insert(index.to_string(), Control::button(button));
+            for (index, group) in myconfig.groups.iter().enumerate() {
+                let button = ButtonControl::new_page_select(&group.name, (index + 1).try_into()?);
+                row.insert(index.to_string(), Control::button(button));
+            }
+            // row.insert("0".to_string(), Control::pageup);
+            // row.insert("1".to_string(), Control::pagedown);
+            page.controls.insert("0".to_string(), row);
         }
 
-        // row.insert("0".to_string(), Control::pageup);
-        // row.insert("1".to_string(), Control::pagedown);
-        page.controls.insert("0".to_string(), row);
+        if let Some(this_controls) = myconfig.groups.get(p - 1) {
+            let mut viewrow = HashMap::new();
+           // let controlrow = HashMap::new();
+            for (index, channel) in this_controls.channels.iter().enumerate() {
+                let button = ButtonControl::new_channel_view(&channel.0, channel.1.try_into()?);
+                viewrow.insert(index.to_string(), Control::button(button));
+            }
+            page.controls.insert("2".to_string(), viewrow);
+        }
 
         config.pages.insert(p.to_string(), page);
     }

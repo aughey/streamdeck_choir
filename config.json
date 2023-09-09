@@ -1885,9 +1885,16 @@
 		}
 	},
 	"instances": {
-		"D5xzx1UbNHN8oVg1q2Hne": {
+		"fHq62eecA1Vde26UtQYrI": {
 			"instance_type": "behringer-x32",
+			"sortOrder": 1,
 			"label": "x32",
+			"isFirstInit": false,
+			"config": {
+				"host": "10.0.0.50",
+				"fadeFps": 10
+			},
+			"enabled": true,
 			"lastUpgradeIndex": 2
 		}
 	}
