@@ -26,10 +26,7 @@ impl Default for Config {
         Self {
             version: 4,
             r#type: "full".to_string(),
-            pages: (1..100)
-                .into_iter()
-                .map(|i| (i.to_string(), Page::default()))
-                .collect(),
+            pages: (1..100).map(|i| (i.to_string(), Page::default())).collect(),
             instances: Default::default(),
         }
     }
@@ -92,6 +89,7 @@ impl Default for Page {
 
 #[derive(Debug, Serialize, Deserialize)]
 #[allow(non_camel_case_types)]
+#[allow(clippy::large_enum_variant)]
 #[serde(tag = "type")]
 pub enum Control {
     button(ButtonControl),
@@ -169,7 +167,7 @@ impl<'a> ChannelPath<'a> {
             return Ok(format!("$(x32:fader_ch_{:02})", channel));
         }
 
-        let slash_to_underscore = self.channel_str.replace("/", "_");
+        let slash_to_underscore = self.channel_str.replace('/', "_");
         Ok(format!("$(x32:fader{slash_to_underscore})"))
     }
 
@@ -204,12 +202,12 @@ impl ButtonControl {
         let mut steps = HashMap::new();
         steps.insert("0".to_string(), Step::new_page_select(page));
         Self {
-            steps: steps,
+            steps,
             ..Self::new(text)
         }
     }
     pub fn new_channel_view(text: &str, channel: &ChannelPath) -> Result<Self> {
-        Ok(Self::new(&format!("{text}\n{}", channel.view_string()?)))
+        Ok(Self::new(format!("{text}\n{}", channel.view_string()?)))
     }
     pub fn new_channel_rotary(text: &str, x32_id: &str, channel: &ChannelPath, step: f32) -> Self {
         let mut steps = HashMap::new();
@@ -221,14 +219,14 @@ impl ButtonControl {
                 ..Default::default()
             },
             feedbacks: Default::default(),
-            steps: steps,
+            steps,
         }
     }
     pub fn add_down_action(mut self, action: Action) -> Self {
         let action_set = self
             .steps
             .entry("0".to_string())
-            .or_insert_with(|| Step::default());
+            .or_insert_with(Step::default);
         action_set.action_sets.down.push(action);
         self
     }
@@ -387,7 +385,7 @@ pub enum Action {
     fad(FadAction),
     fader_delta(FaderDeltaAction),
     go_scene(GoSceneAction),
-    mute(MuteAction)
+    mute(MuteAction),
 }
 impl Action {
     pub fn fade_channel(x32_id: &str, channel: &ChannelPath, step: f32) -> Self {
@@ -422,7 +420,7 @@ impl MuteAction {
             instance: x32_id.to_string(),
             options: MuteOptions {
                 target: channel.set_string(),
-                mute: 2
+                mute: 2,
             },
             delay: 0,
         }

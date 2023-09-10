@@ -1,7 +1,7 @@
 use anyhow::Result;
 use std::collections::HashMap;
 use streamdeck_choir::{
-    Action, ButtonControl, ChannelPath, Config, Control, Instance, MyConfig, Page, MuteAction,
+    Action, ButtonControl, ChannelPath, Config, Control, Instance, MuteAction, MyConfig, Page,
 };
 
 fn main() -> Result<()> {
@@ -28,7 +28,8 @@ fn main() -> Result<()> {
             let mut row = HashMap::new();
 
             for (index, group) in myconfig.groups.iter().enumerate() {
-                let mut button = ButtonControl::new_page_select(&group.name, (index + 1).try_into()?);
+                let mut button =
+                    ButtonControl::new_page_select(&group.name, (index + 1).try_into()?);
                 if index == p - 1 {
                     button = button.background_color(0x7c7c00);
                 }
@@ -59,16 +60,13 @@ fn main() -> Result<()> {
             for (index, (channel_name, channel_num)) in this_controls.channels.iter().enumerate() {
                 let channel = ChannelPath::new(channel_num);
 
-                let button = ButtonControl::new_channel_view(&channel_name, &channel)?
-                    .add_mute_feedback(&x32_id,&channel);
+                let button = ButtonControl::new_channel_view(channel_name, &channel)?
+                    .add_mute_feedback(&x32_id, &channel);
                 viewrow.insert(index.to_string(), Control::button(button));
 
                 let button =
-                    ButtonControl::new_channel_rotary(&channel_name, &x32_id, &channel, 0.3)
-                        .add_down_action(Action::mute(MuteAction::new(
-                            &x32_id,
-                            &channel
-                        )));
+                    ButtonControl::new_channel_rotary(channel_name, &x32_id, &channel, 0.3)
+                        .add_down_action(Action::mute(MuteAction::new(&x32_id, &channel)));
                 controlrow.insert(index.to_string(), Control::button(button));
             }
             page.controls.insert("2".to_string(), viewrow);
