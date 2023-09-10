@@ -1,6 +1,6 @@
-use std::collections::HashMap;
-
+use anyhow::Result;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct MyConfig {
@@ -10,7 +10,7 @@ pub struct MyConfig {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Group {
     pub name: String,
-    pub channels: Vec<(String, u32)>,
+    pub channels: Vec<(String, String)>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -69,7 +69,7 @@ impl Instance {
 #[allow(non_snake_case)]
 pub struct InstanceConfig {
     host: String,
-    fadeFps: u32
+    fadeFps: u32,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -99,6 +99,39 @@ pub enum Control {
     pagedown,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+#[allow(non_camel_case_types)]
+#[serde(tag = "type")]
+pub enum Feedback {
+    mute(FeedbackMute),
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+#[allow(non_snake_case)]
+pub struct FeedbackMute {
+    id: String,
+    instance_id: String,
+    options: FeedbackMuteOptions,
+    style: ColorStyle,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+#[allow(non_snake_case)]
+struct FeedbackMuteOptions {
+    target: String,
+    state: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+#[allow(non_snake_case)]
+pub struct ColorStyle {
+    color: u32,
+    bgcolor: u32,
+}
+
 // #[derive(Debug, Serialize, Deserialize)]
 // #[serde(deny_unknown_fields)]
 // pub struct PageChange {}
@@ -123,39 +156,66 @@ impl Default for Gridsize {
     }
 }
 
+pub struct ChannelPath<'a> {
+    channel_str: &'a str,
+}
+impl<'a> ChannelPath<'a> {
+    pub fn new(c: &'a str) -> Self {
+        Self { channel_str: c }
+    }
+    pub fn view_string(&self) -> Result<String> {
+        let channel_as_number = self.channel_str.parse::<u32>();
+        if let Ok(channel) = channel_as_number {
+            return Ok(format!("$(x32:fader_ch_{:02})", channel));
+        }
+
+        let slash_to_underscore = self.channel_str.replace("/", "_");
+        Ok(format!("$(x32:fader{slash_to_underscore})"))
+    }
+
+    fn set_string(&self) -> String {
+        let channel_as_number = self.channel_str.parse::<u32>();
+        match channel_as_number {
+            Ok(num) => format!("/ch/{:02}", num),
+            Err(_) => self.channel_str.to_string(),
+        }
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 #[allow(non_snake_case)]
 pub struct ButtonControl {
     style: Style,
     options: Options,
-    feedbacks: Vec<()>,
+    feedbacks: Vec<Feedback>,
     steps: HashMap<String, Step>,
 }
 impl ButtonControl {
-    pub fn new_page_select(text: impl AsRef<str>, page: u32) -> Self {
-        let mut steps = HashMap::new();
-        steps.insert("0".to_string(), Step::new_page_select(page));
+    pub fn new(text: impl AsRef<str>) -> Self {
         Self {
             style: Style::new(text.as_ref()),
-            options: Default::default(),
-            feedbacks: Default::default(),
-            steps: steps,
-        }
-    }
-    pub fn new_channel_view(text: &str, channel: u32) -> Self {
-        Self {
-            style: Style::new(&format!("{text}\n$(x32:fader_ch_{channel})")),
             options: Default::default(),
             feedbacks: Default::default(),
             steps: Default::default(),
         }
     }
-    pub fn new_channel_rotary(x32_id: &str, channel: u32, step: f32) -> Self {
+    pub fn new_page_select(text: impl AsRef<str>, page: u32) -> Self {
+        let mut steps = HashMap::new();
+        steps.insert("0".to_string(), Step::new_page_select(page));
+        Self {
+            steps: steps,
+            ..Self::new(text)
+        }
+    }
+    pub fn new_channel_view(text: &str, channel: &ChannelPath) -> Result<Self> {
+        Ok(Self::new(&format!("{text}\n{}", channel.view_string()?)))
+    }
+    pub fn new_channel_rotary(text: &str, x32_id: &str, channel: &ChannelPath, step: f32) -> Self {
         let mut steps = HashMap::new();
         steps.insert("0".to_string(), Step::fade_channel(x32_id, channel, step));
         Self {
-            style: Style::new(""),
+            style: Style::new(text),
             options: Options {
                 rotaryActions: Some(true),
                 ..Default::default()
@@ -163,6 +223,41 @@ impl ButtonControl {
             feedbacks: Default::default(),
             steps: steps,
         }
+    }
+    pub fn add_down_action(mut self, action: Action) -> Self {
+        let action_set = self
+            .steps
+            .entry("0".to_string())
+            .or_insert_with(|| Step::default());
+        action_set.action_sets.down.push(action);
+        self
+    }
+
+    pub fn background_color(mut self, color: u32) -> Self {
+        self.style.bgcolor = color;
+        self
+    }
+
+    pub fn add_mute_feedback(self, x32_id: &str, channel: &ChannelPath<'_>) -> Self {
+        self.add_feedback(Feedback::mute(FeedbackMute {
+            id: new_id(),
+            instance_id: x32_id.to_string(),
+            options: {
+                FeedbackMuteOptions {
+                    target: channel.set_string(),
+                    state: true,
+                }
+            },
+            style: ColorStyle {
+                color: 0,
+                bgcolor: 0xff0000,
+            },
+        }))
+    }
+
+    pub fn add_feedback(mut self, feedback: Feedback) -> Self {
+        self.feedbacks.push(feedback);
+        self
     }
 }
 
@@ -218,7 +313,7 @@ fn new_id() -> String {
     uuid::Uuid::new_v4().to_string()
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Default)]
 #[serde(deny_unknown_fields)]
 #[allow(non_snake_case)]
 pub struct Step {
@@ -250,13 +345,13 @@ impl Step {
         }
     }
 
-    fn fade_channel(x32_id: &str, channel: u32, step: f32)  ->  Self {
+    fn fade_channel(x32_id: &str, channel: &ChannelPath, step: f32) -> Self {
         Self {
             action_sets: ActionSet {
                 down: vec![],
                 up: vec![],
-                rotate_left: Some(vec![Action::fade_channel(x32_id,channel,-step)]),
-                rotate_right: Some(vec![Action::fade_channel(x32_id,channel,step)]),
+                rotate_left: Some(vec![Action::fade_channel(x32_id, channel, -step)]),
+                rotate_right: Some(vec![Action::fade_channel(x32_id, channel, step)]),
             },
             options: StepOptions {
                 runWhileHeld: vec![],
@@ -265,14 +360,14 @@ impl Step {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Default)]
 #[serde(deny_unknown_fields)]
 #[allow(non_snake_case)]
 pub struct StepOptions {
     runWhileHeld: Vec<()>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Default)]
 #[serde(deny_unknown_fields)]
 #[allow(non_snake_case)]
 pub struct ActionSet {
@@ -287,15 +382,76 @@ pub struct ActionSet {
 #[derive(Debug, Serialize, Deserialize)]
 #[allow(non_camel_case_types)]
 #[serde(tag = "action")]
-enum Action {
+pub enum Action {
     set_page_byindex(SetPageByIndexAction),
     fad(FadAction),
     fader_delta(FaderDeltaAction),
+    go_scene(GoSceneAction),
+    mute(MuteAction)
 }
 impl Action {
-    fn fade_channel(x32_id: &str, channel: u32, step: f32) -> Self {
-       Self::fader_delta(FaderDeltaAction::fade_channel(x32_id,channel,step))
+    pub fn fade_channel(x32_id: &str, channel: &ChannelPath, step: f32) -> Self {
+        Self::fader_delta(FaderDeltaAction::fade_channel(x32_id, channel, step))
     }
+    pub fn set_fader(x32_id: &str, channel: &ChannelPath, value: f32) -> Self {
+        Self::fad(FadAction::set_fader(x32_id, channel, value))
+    }
+    pub fn go_to_scene(x32_id: &str, scene: u32) -> Self {
+        Self::go_scene(GoSceneAction {
+            id: new_id(),
+            instance: x32_id.to_string(),
+            options: GoSceneOptions { scene },
+            delay: 0,
+        })
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+#[allow(non_snake_case)]
+pub struct MuteAction {
+    id: String,
+    instance: String,
+    options: MuteOptions,
+    delay: u32,
+}
+impl MuteAction {
+    pub fn new(x32_id: &str, channel: &ChannelPath) -> Self {
+        Self {
+            id: new_id(),
+            instance: x32_id.to_string(),
+            options: MuteOptions {
+                target: channel.set_string(),
+                mute: 2
+            },
+            delay: 0,
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+#[allow(non_snake_case)]
+pub struct MuteOptions {
+    target: String,
+    mute: u32,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+#[allow(non_snake_case)]
+pub struct GoSceneAction {
+    id: String,
+    instance: String,
+    options: GoSceneOptions,
+    delay: u32,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+#[allow(non_snake_case)]
+pub struct GoSceneOptions {
+    scene: u32,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -308,12 +464,12 @@ pub struct FaderDeltaAction {
     delay: u32,
 }
 impl FaderDeltaAction {
-    fn fade_channel(x32_id: &str, channel: u32, step: f32) -> Self {
+    fn fade_channel(x32_id: &str, channel: &ChannelPath, step: f32) -> Self {
         Self {
             id: new_id(),
             instance: x32_id.to_string(),
             options: FadDeltaOptions {
-                target: format!("/ch/{:02}", channel),
+                target: channel.set_string(),
                 delta: step,
                 fadeDuration: 0,
                 fadeAlgorithm: "linear".to_string(),
@@ -363,14 +519,29 @@ pub struct FadAction {
     options: FadOptions,
     delay: u32,
 }
-
+impl FadAction {
+    fn set_fader(x32_id: &str, channel: &ChannelPath, value: f32) -> Self {
+        Self {
+            id: new_id(),
+            instance: x32_id.to_string(),
+            options: FadOptions {
+                target: channel.set_string(),
+                fad: value,
+                fadeDuration: 0,
+                fadeAlgorithm: "linear".to_string(),
+                fadeType: "ease_in".to_string(),
+            },
+            delay: 0,
+        }
+    }
+}
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 #[allow(non_snake_case)]
 pub struct FadOptions {
     target: String,
-    fad: u32,
+    fad: f32,
     fadeDuration: u32,
     fadeAlgorithm: String,
     fadeType: String,

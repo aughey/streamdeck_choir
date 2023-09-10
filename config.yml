@@ -1,7 +1,7 @@
 groups:
   - name: "Floor"
     channels:
-      - [Joe, 26]
+      - [Piano, 26]
       - [Flute, 28]
       - [Front Left, 17]
       - [Front Right, 31]
@@ -11,3 +11,14 @@ groups:
       - [Middle Right, 27]
       - [Top Left, 30]
       - [Top Right, 29]
+  - name: "Stage"
+    channels:
+      - [Head Mic, 6]
+      - [Ambo, 1]
+      - [Chairs, 2]
+      - [Altar, 3]
+  - name: "Mains"
+    channels:
+      - [Main, "/main/st"]
+      - [Choir Monitor,"/bus/03"]
+      - [Choir Sub,"/dca/2"]
